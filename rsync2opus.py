@@ -91,13 +91,25 @@ class Fatal(Exception):
 
 # --- configuration ------------------------------------------------------------
 
-CONFIG_NAME = "rsync2opus.toml"
+CONFIG_NAME = "config.toml"
+CONFIG_DIR = "rsync2"
+
+# rsync2mp3, rsync2opus and rsync2aac share one config file. Top-level keys
+# apply to all three; the per-codec tables below override them, which is where
+# anything codec-specific (dest, bitrate, vbr) belongs.
+CONFIG_SECTION = "opus"
+CONFIG_SECTIONS = ("mp3", "opus", "aac")
 
 # Keys a config file may set, mapped to the argparse dest they override.
 CONFIG_KEYS = {
     "source", "dest", "bitrate", "vbr", "compression_level", "jobs", "port",
     "max_duration", "art", "delete", "tolerance", "prune_empty", "keep_long",
 }
+
+# Keys any of the three tools accepts. A top-level key from this set that this
+# tool has no use for (a sibling's `encoder`, say) is ignored rather than
+# rejected — the file is shared, so it will legitimately hold such keys.
+CONFIG_KEYS_ALL = CONFIG_KEYS | {"encoder", "tags"}
 
 DURATION_UNITS = {"h": 3600, "m": 60, "s": 1}
 
@@ -161,15 +173,46 @@ def config_search_path(explicit: str | None) -> list[Path]:
     paths = [Path.cwd() / CONFIG_NAME]
     xdg = os.environ.get("XDG_CONFIG_HOME")
     if xdg:
-        paths.append(Path(xdg).expanduser() / "rsync2opus" / "config.toml")
+        paths.append(Path(xdg).expanduser() / CONFIG_DIR / CONFIG_NAME)
     if sys.platform == "darwin":
         # The native macOS location, but ~/.config is still searched after it:
         # a dotfile repo shared with a Linux box will put the config there.
         paths.append(Path.home() / "Library" / "Application Support"
-                     / "rsync2opus" / "config.toml")
+                     / CONFIG_DIR / CONFIG_NAME)
     if not xdg:
-        paths.append(Path("~/.config").expanduser() / "rsync2opus" / "config.toml")
+        paths.append(Path("~/.config").expanduser() / CONFIG_DIR / CONFIG_NAME)
     return paths
+
+
+def merge_config_sections(raw: dict, path: Path) -> dict:
+    """Flatten the shared config into the settings this tool cares about.
+
+    Top-level keys are the shared defaults; the [opus] table wins over them.
+    A sibling's table is skipped entirely, and a top-level key that only a
+    sibling understands is dropped rather than rejected.
+    """
+    shared = {k: v for k, v in raw.items() if k not in CONFIG_SECTIONS}
+    mine = raw.get(CONFIG_SECTION, {})
+    if not isinstance(mine, dict):
+        raise Fatal(f"{path}: [{CONFIG_SECTION}] must be a table")
+
+    unknown = set(shared) - CONFIG_KEYS_ALL
+    if unknown:
+        raise Fatal(
+            f"{path}: unknown setting(s) {', '.join(sorted(unknown))}\n"
+            f"valid keys: {', '.join(sorted(CONFIG_KEYS))}"
+        )
+    unknown = set(mine) - CONFIG_KEYS
+    if unknown:
+        raise Fatal(
+            f"{path}: unknown setting(s) in [{CONFIG_SECTION}]: "
+            f"{', '.join(sorted(unknown))}\n"
+            f"valid keys: {', '.join(sorted(CONFIG_KEYS))}"
+        )
+
+    settings = {k: v for k, v in shared.items() if k in CONFIG_KEYS}
+    settings.update(mine)
+    return settings
 
 
 def load_config(explicit: str | None) -> tuple[dict, Path | None]:
@@ -185,12 +228,7 @@ def load_config(explicit: str | None) -> tuple[dict, Path | None]:
         except (OSError, tomllib.TOMLDecodeError) as e:
             raise Fatal(f"cannot read config {path}: {e}")
 
-        unknown = set(raw) - CONFIG_KEYS
-        if unknown:
-            raise Fatal(
-                f"{path}: unknown setting(s) {', '.join(sorted(unknown))}\n"
-                f"valid keys: {', '.join(sorted(CONFIG_KEYS))}"
-            )
+        raw = merge_config_sections(raw, path)
         if "max_duration" in raw:
             raw["max_duration"] = parse_duration(raw["max_duration"])
         # The CLI spells this as --no-art, so invert the friendlier config name.
@@ -1548,7 +1586,7 @@ def build_parser(config: dict | None = None) -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"rsync2opus {__version__}")
     p.add_argument("--config", "-c", metavar="PATH",
                    help=f"config file (default: ./{CONFIG_NAME}, "
-                        f"then ~/.config/rsync2opus/config.toml)")
+                        f"then ~/.config/{CONFIG_DIR}/{CONFIG_NAME})")
     p.add_argument("--jobs", "-j", type=int, default=None,
                    help=f"parallel workers (default: {min(os.cpu_count() or 4, 24)} "
                         f"local, {REMOTE_JOB_CAP} when an endpoint is remote)")

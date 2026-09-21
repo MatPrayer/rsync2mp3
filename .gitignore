@@ -1,5 +1,7 @@
-# Local configs hold real endpoints and library paths — keep them out of git.
-# Copy the .example files and edit those instead.
+# The local config holds real endpoints and library paths — keep it out of git.
+# Copy config.toml.example and edit that instead.
+config.toml
+# Superseded by the shared config.toml; ignored so old copies stay untracked.
 rsync2mp3.toml
 rsync2aac.toml
 rsync2opus.toml

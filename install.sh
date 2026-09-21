@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install rsync2opus, rsync2mp3 and rsync2aac into ~/.local/bin.
+# Install rsync2mp3, rsync2opus and rsync2aac into ~/.local/bin.
 # Works on Linux and macOS; on macOS the default bash is 3.2, so nothing here
 # may use associative arrays, `${x^^}` or an empty array under `set -u`.
 set -euo pipefail
@@ -10,7 +10,7 @@ mkdir -p "$bindir"
 
 os="$(uname -s)"
 
-for name in rsync2opus rsync2mp3 rsync2aac; do
+for name in rsync2mp3 rsync2opus rsync2aac; do
     src="$here/$name.py"
     [ -f "$src" ] || continue
     ln -sf "$src" "$bindir/$name"
@@ -71,7 +71,7 @@ fi
 # Not piped into grep -q: that exits on the first match, SIGPIPEs ffmpeg, and
 # `set -o pipefail` then reports the whole pipeline as failed.
 encoders="$(ffmpeg -hide_banner -encoders 2>/dev/null || true)"
-for pair in "libopus:rsync2opus" "libmp3lame:rsync2mp3" "aac:rsync2aac"; do
+for pair in "libmp3lame:rsync2mp3" "libopus:rsync2opus" "aac:rsync2aac"; do
     enc="${pair%%:*}"
     tool="${pair##*:}"
     if [[ "$encoders" != *" $enc "* ]]; then
@@ -86,8 +86,8 @@ if [[ "$encoders" == *libfdk_aac* ]]; then
 fi
 
 if [ "$os" = Darwin ]; then
-    echo "note: config is read from ~/Library/Application Support/<tool>/config.toml"
-    echo "      (~/.config/<tool>/config.toml still works too)"
+    echo "note: config is read from ~/Library/Application Support/rsync2/config.toml"
+    echo "      (~/.config/rsync2/config.toml still works too)"
 fi
 
-echo "all dependencies present. try: rsync2aac --help"
+echo "all dependencies present. try: rsync2mp3 --help"

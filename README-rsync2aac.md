@@ -1,7 +1,7 @@
 # rsync2aac
 
 Mirror a lossless music library into AAC, incrementally, the way rsync mirrors
-files. Same tool as [rsync2opus](README.md) — same commands, same config model,
+files. Same tool as [rsync2mp3](README.md) — same commands, same config file,
 same mtime-based freshness — encoding to AAC in an `.m4a` container.
 
 ```sh
@@ -15,7 +15,8 @@ rsync2aac sync /music user@nas:/srv/music-aac
 It is the middle target. Better than MP3 at the same bitrate, worse than Opus,
 and the only one of the three Apple hardware plays natively: iPhones, iPods,
 CarPlay, older Sonos, most smart TVs and bluetooth receivers. Anything that
-reads Opus should get `rsync2opus` and spend half the bitrate.
+reads Opus should get [`rsync2opus`](README-rsync2opus.md) and spend half the
+bitrate.
 
 Measured on the same 2:44 FLAC (874 kbps, 18 MB, 26 tags, embedded art):
 
@@ -128,34 +129,33 @@ quality setting, so the flag means the same thing either way.
 
 ## Configuration
 
-Identical to rsync2opus, with its own file:
-
-1. `--config PATH`
-2. `./rsync2aac.toml`
-3. `$XDG_CONFIG_HOME/rsync2aac/config.toml`, if that variable is set
-4. `~/Library/Application Support/rsync2aac/config.toml` (macOS only)
-5. `~/.config/rsync2aac/config.toml`
+The shared `config.toml` all three tools read — see
+[README.md](README.md#configuration) for the lookup order. Top-level keys apply
+everywhere; the `[aac]` table holds what is AAC-specific:
 
 ```toml
-source = "user@host:path/to/music"
-dest   = "/path/to/music-aac"
-
-bitrate = "192k"
-# vbr   = 4          # 1-5; overrides bitrate
-encoder = "auto"     # auto | libfdk_aac | aac
-art     = true
-tags    = true       # freeform atoms for ReplayGain, label, ISRC, ...
+source       = "user@host:path/to/music"
 max_duration = "25m"
+art          = true
+
+[aac]
+dest    = "/path/to/music-aac"
+bitrate = "192k"
+# vbr   = 4           # 1-5; overrides bitrate
+encoder = "auto"      # auto | libfdk_aac | aac
+tags    = true        # freeform atoms for ReplayGain, label, ISRC, ...
+keep_long = [
+  "Sleep/1/01 - Dopesmoker.m4a",
+]
 ```
 
 Command-line flags always override the config. Unknown keys are rejected with
-the list of valid ones. `keep_long` entries name **destination** paths, so
-carrying a list over from another config means changing the extension to
-`.m4a`.
+the list of valid ones. `keep_long` entries name **destination** paths, which
+is why each codec table spells the same track with its own extension.
 
 ## Commands
 
-Same four as rsync2opus, with the same semantics:
+Same four as rsync2mp3, with the same semantics:
 
 - **`sync`** — convert and copy everything missing or stale. `-n` dry run,
   `-f` force, `--delete` remove orphans, `--adopt` restamp instead of
@@ -168,6 +168,6 @@ Same four as rsync2opus, with the same semantics:
   fact. Dry run unless `--yes`.
 
 See [README.md](README.md) for the full description of each, plus remote
-endpoints, `max_duration`, `keep_long`, and `--adopt`.
+endpoints, `max_duration`, `keep_long`, `--adopt` and the macOS notes.
 
 Failures are collected in `.rsync2aac-failures.log` and never abort the run.

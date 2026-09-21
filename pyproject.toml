@@ -3,9 +3,9 @@ requires = ["setuptools>=68"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "rsync2opus"
+name = "rsync2mp3"
 version = "1.2.0"
-description = "Mirror a lossless music library into Opus, MP3 or AAC, incrementally, rsync-style"
+description = "Mirror a lossless music library into MP3, Opus or AAC, incrementally, rsync-style"
 readme = "README.md"
 # 3.11 for tomllib, which the config loader imports unconditionally.
 requires-python = ">=3.11"
@@ -17,9 +17,9 @@ classifiers = [
 ]
 
 [project.scripts]
-rsync2opus = "rsync2opus:main"
 rsync2mp3 = "rsync2mp3:main"
+rsync2opus = "rsync2opus:main"
 rsync2aac = "rsync2aac:main"
 
 [tool.setuptools]
-py-modules = ["rsync2opus", "rsync2mp3", "rsync2aac"]
+py-modules = ["rsync2mp3", "rsync2opus", "rsync2aac"]
