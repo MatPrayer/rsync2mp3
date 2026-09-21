@@ -1,8 +1,9 @@
 # rsync2aac
 
 Mirror a lossless music library into AAC, incrementally, the way rsync mirrors
-files. Same tool as [rsync2mp3](README.md) — same commands, same config file,
-same mtime-based freshness — encoding to AAC in an `.m4a` container.
+files. Same tool as [rsync2mp3](README-rsync2mp3.md) — same commands, same
+config file, same mtime-based freshness — encoding to AAC in an `.m4a`
+container.
 
 ```sh
 rsync2aac sync /music /music-aac

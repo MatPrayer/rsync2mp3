@@ -1,8 +1,8 @@
 # rsync2opus
 
 Mirror a lossless music library into Opus, incrementally, the way rsync mirrors
-files. Same tool as [rsync2mp3](README.md) — same commands, same config file,
-same mtime-based freshness — with `libopus` on the output side.
+files. Same tool as [rsync2mp3](README-rsync2mp3.md) — same commands, same
+config file, same mtime-based freshness — with `libopus` on the output side.
 
 ```sh
 rsync2opus sync /music /music-opus
@@ -29,7 +29,7 @@ back by hand.)
 The tradeoff is playback support. Opus is fine on Android, Linux, VLC,
 foobar2000, Poweramp, Symfonium, Jellyfin and Rockbox. It will not play on most
 car head units, older DAPs, Sonos, or the stock iOS Music app — those want
-[`rsync2mp3`](README.md) or [`rsync2aac`](README-rsync2aac.md).
+[`rsync2mp3`](README-rsync2mp3.md) or [`rsync2aac`](README-rsync2aac.md).
 
 ## Install
 

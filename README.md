@@ -1,6 +1,7 @@
 # rsync2mp3
 
-Mirror a lossless music library into MP3, incrementally, the way rsync mirrors files.
+Mirror a lossless music library into a lossy one, incrementally, the way rsync
+mirrors files.
 
 Point it at a source and a destination and run it as often as you like — only
 what changed gets processed. Either side may be local or remote.
@@ -11,34 +12,26 @@ rsync2mp3 sync nas:/srv/music /music-mp3
 rsync2mp3 sync /music user@nas:/srv/music-mp3
 ```
 
-## Why MP3
+Three tools, one codebase: the same commands, the same shared config file and
+the same mtime-based freshness, with a different encoder on the output side.
 
-Because the player says so. MP3 is the compatibility target, not the quality
-one: car head units, older DAPs, Sonos, the stock iOS Music app, cheap
-bluetooth receivers, anything with a USB port on the front.
+| Tool | Output | For | Docs |
+|---|---|---|---|
+| **rsync2mp3** | MP3 (`libmp3lame`) | the compatibility target — car head units, older DAPs, Sonos, the stock iOS Music app, anything with a USB port on the front | [README-rsync2mp3.md](README-rsync2mp3.md) |
+| **rsync2opus** | Opus (`libopus`) | half the size at better quality, lossless tag fidelity — Android, Linux, VLC, foobar2000, Poweramp, Symfonium, Jellyfin, Rockbox | [README-rsync2opus.md](README-rsync2opus.md) |
+| **rsync2aac** | AAC in `.m4a` | the Apple target — iPhones, iPods, CarPlay, older Sonos. Keeps surround, and keeps the tags MP4 has no atom for | [README-rsync2aac.md](README-rsync2aac.md) |
 
 Measured on a 2:44 FLAC track (874 kbps, 18 MB) with 26 metadata tags and
 embedded cover art:
 
 | Codec | Settings | Size | Tags kept |
 |---|---|---|---|
-| **MP3** | `libmp3lame` V0 | **6.3 MB** | 25/26, remapped to TXXX |
-| MP3 | `libmp3lame` 256k CBR | 5.2 MB | 25/26, remapped to TXXX |
 | Opus | `libopus` 128k VBR | 2.7 MB | 26/26, unchanged |
-| AAC | `aac` 256k | 6.4 MB | 11/26 — ReplayGain, label, disc/track totals and release date all lost |
+| MP3 | `libmp3lame` V0 | 6.3 MB | 25/26, remapped to TXXX |
+| AAC | `aac` 256k | 6.4 MB | 11/26 natively — 26/26 as `rsync2aac` writes it |
 
-Tags come across through ffmpeg's ID3 mapping. ID3v2 has no native frame for
-things like ReplayGain, so those land in `TXXX` — readable, but a player that
-doesn't look there will not find them.
-
-If the device can read something better, there are two siblings — the same tool
-with a different encoder on the output side, reading the same config file:
-
-- **[rsync2opus](README-rsync2opus.md)** — half the size at better quality, and
-  lossless tag fidelity. Android, Linux, VLC, foobar2000, Poweramp, Symfonium,
-  Jellyfin, Rockbox.
-- **[rsync2aac](README-rsync2aac.md)** — the Apple target: iPhones, iPods,
-  CarPlay, older Sonos. Keeps surround, and keeps the tags MP4 has no atom for.
+Pick by what the player can read, not by the numbers: a file the device refuses
+to open is worth nothing at any bitrate.
 
 ## Install
 
@@ -52,7 +45,7 @@ or, for an isolated install:
 pipx install .
 ```
 
-Needs `ffmpeg` (with `libmp3lame`), `ffprobe`, and `python-mutagen`:
+Needs `ffmpeg`, `ffprobe` and `python-mutagen`:
 
 ```sh
 sudo pacman -S ffmpeg python-mutagen   # Arch
@@ -61,73 +54,48 @@ python3 -m pip install --user mutagen  # macOS: mutagen is not in Homebrew
 ```
 
 Linux and macOS are both supported, including a macOS box on either end of a
-remote sync. Python 3.11 or newer (for `tomllib`). `install.sh` warns if your
-ffmpeg has no `libmp3lame`.
+remote sync. Python 3.11 or newer (for `tomllib`). `install.sh` reports which
+encoders your ffmpeg actually has, and warns about the ones it is missing.
 
 ## How files are treated
 
+The same classification in all three tools — only the transcode target differs:
+
 | Source | Result |
 |---|---|
-| `.flac .wav .aiff .ape .wv .tta .tak .shn .dsf .dff .w64 .caf` | transcoded to MP3 |
+| `.flac .wav .aiff .ape .wv .tta .tak .shn .dsf .dff .w64 .caf` | transcoded |
 | `.m4a .m4b .mp4` | probed — ALAC/PCM is transcoded, AAC is copied |
 | `.mp3 .opus .ogg .aac .mpc .wma` | copied verbatim, never re-encoded |
 | `.jpg .png .webp .lrc .cue .m3u .m3u8 .pls .pdf` | copied |
 | `.log .nfo .sfv .accurip .md5`, dotfiles | ignored |
 
-Existing `.mp3` sources are **copied, not re-encoded** — transcoding lossy to
+Already-lossy sources are **copied, not re-encoded** — transcoding lossy to
 lossy only throws away quality.
 
-### What MP3 cannot represent
+Cover art is embedded in every transcoded file: the source's own attached
+picture if it has one, otherwise the best `cover`/`folder`/`front` image sitting
+in the album directory. `--no-art` skips it and is faster. The container
+details — ID3v2.3 `APIC`, the MP4 `covr` atom, an Opus picture block — are in
+each tool's own page.
 
-MP3 is a narrow format: 8–48 kHz, mono or stereo only. A lossless library
-routinely contains neither.
-
-- **96 kHz / 192 kHz masters** are resampled down to 48 kHz.
-- **5.1 and 7.1 sources** are downmixed to stereo.
-
-Both happen automatically, in the encode, with no extra probe. This is the one
-real behavioural difference from `rsync2opus` and `rsync2aac`, which keep
-surround intact.
+Surround is kept by `rsync2opus` and `rsync2aac`. MP3 cannot carry it, so
+`rsync2mp3` downmixes to stereo and resamples down to 48 kHz; see
+[README-rsync2mp3.md](README-rsync2mp3.md#what-mp3-cannot-represent).
 
 ### Name collisions
 
-Unlike Opus, MP3 is both an output format and a common input one. An album
-directory holding both `track.flac` and `track.mp3` produces two jobs writing
-the same destination file. The transcode of the lossless master wins; the lossy
-twin is skipped and reported:
+Where the output extension is also a common input one — `.mp3` for `rsync2mp3`,
+`.m4a` for `rsync2aac` — an album directory holding both `track.flac` and
+`track.mp3` produces two jobs writing the same destination file. The transcode
+of the lossless master wins; the lossy twin is skipped and reported:
 
 ```
 1 sources collide on a destination path and were skipped:
   Album/05.mp3  (kept Album/05.flac)
 ```
 
-## Cover art
-
-Embedded in each `.mp3` as a single ID3v2.3 `APIC` front-cover frame: the
-source's own attached picture if it has one, otherwise the best
-`cover`/`folder`/`front` image sitting in the album directory. Any pre-existing
-`APIC` frames are cleared first, since players pick unpredictably between
-duplicates.
-
-Tags are written as **ID3v2.3 plus ID3v1** rather than the ffmpeg default of
-v2.4 — car stereos and older DAPs routinely ignore v2.4 tags completely.
-`--no-art` skips art entirely and is faster.
-
-## Bitrate and VBR
-
-```sh
-rsync2mp3 sync src dst              # 256k CBR, the default
-rsync2mp3 sync src dst -b 320k      # constant bitrate
-rsync2mp3 sync src dst -V 0         # LAME VBR, best quality (~245 kbps)
-rsync2mp3 sync src dst -V 2         # LAME VBR, ~190 kbps
-```
-
-`-V/--vbr` takes LAME's own quality scale, 0 (best) to 9 (worst), and overrides
-`--bitrate`. VBR is smaller than CBR at equal quality; use it unless the target
-player is old enough to mistrack VBR files.
-
-`--compression-level` is LAME's `-q`: how hard the encoder looks, 0 (best) to
-9 (fastest), default `0`. It changes quality and encoding time, not bitrate.
+Opus output never collides, since nothing in a lossless library arrives as
+`.opus`.
 
 ## Configuration
 
@@ -157,7 +125,6 @@ art          = true
 dest    = "/path/to/music-mp3"
 bitrate = "256k"
 # vbr   = 0             # LAME VBR quality; overrides bitrate
-# compression_level = 0
 
 [opus]
 dest    = "/path/to/music-opus"
@@ -169,9 +136,9 @@ bitrate = "192k"
 ```
 
 Start from [`config.toml.example`](config.toml.example). With `source` and a
-`dest` set, `rsync2mp3 sync` runs with no arguments. Command-line flags always
-override the config file. Unknown keys are rejected with the list of valid ones
-rather than silently ignored — except for a top-level key that only a sibling
+`dest` set, `sync` runs with no arguments. Command-line flags always override
+the config file. Unknown keys are rejected with the list of valid ones rather
+than silently ignored — except for a top-level key that only a sibling
 understands (`encoder`, `tags`), which is ignored, since the file is shared.
 
 ### Skipping long files
@@ -215,21 +182,24 @@ glob syntax would otherwise read as character classes. Also available as
 `--keep-long PATTERN`, repeatable.
 
 Entries name **destination** paths, which is why the list belongs in a codec
-table rather than at the top level: the same track is `.mp3` here, `.opus`
-under `[opus]` and `.m4a` under `[aac]`.
+table rather than at the top level: the same track is `.mp3` under `[mp3]`,
+`.opus` under `[opus]` and `.m4a` under `[aac]`.
 
 ## Commands
+
+Four commands, identical across the three tools. `rsync2mp3` is used in the
+examples; substitute `rsync2opus` or `rsync2aac` freely.
 
 ### `sync`
 
 ```sh
-rsync2mp3 sync SOURCE DEST [-b 256k] [-V 0] [-t 25m] [-n] [-f] [--delete] [--no-art] [--adopt]
+rsync2mp3 sync SOURCE DEST [-b 256k] [-t 25m] [-n] [-f] [--delete] [--no-art] [--adopt]
 ```
 
 - `-n, --dry-run` — show what would happen, change nothing
-- `-b, --bitrate` — constant target bitrate, default `256k`
-- `-V, --vbr` — LAME VBR quality, 0 best to 9 worst; overrides `--bitrate`
-- `--compression-level` — encoder effort, 0 best to 9 fastest (default `0`)
+- `-b, --bitrate` — target bitrate; the default differs per codec
+- `-V, --vbr` — variable bitrate quality; the scale differs per codec
+- `--compression-level` — encoder effort
 - `-t, --max-duration` — skip audio longer than this, default no limit
 - `-f, --force` — re-encode even files that look current
 - `--delete` — remove destination files whose source is gone
@@ -336,4 +306,5 @@ prints the line to add.
 - `--version`
 
 Ctrl-C stops cleanly; completed files stay, partial ones are discarded.
-Failures are collected in `.rsync2mp3-failures.log` and never abort the run.
+Failures are collected in `.rsync2mp3-failures.log` — or the matching
+`.rsync2opus-` / `.rsync2aac-` file — and never abort the run.
