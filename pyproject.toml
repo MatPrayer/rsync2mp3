@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rsync2opus"
+version = "1.2.0"
+description = "Mirror a lossless music library into Opus, MP3 or AAC, incrementally, rsync-style"
+readme = "README.md"
+# 3.11 for tomllib, which the config loader imports unconditionally.
+requires-python = ">=3.11"
+license = "MIT"
+dependencies = ["mutagen>=1.45"]
+classifiers = [
+    "Operating System :: POSIX :: Linux",
+    "Operating System :: MacOS :: MacOS X",
+]
+
+[project.scripts]
+rsync2opus = "rsync2opus:main"
+rsync2mp3 = "rsync2mp3:main"
+rsync2aac = "rsync2aac:main"
+
+[tool.setuptools]
+py-modules = ["rsync2opus", "rsync2mp3", "rsync2aac"]

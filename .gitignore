@@ -1,0 +1,13 @@
+# Local configs hold real endpoints and library paths — keep them out of git.
+# Copy the .example files and edit those instead.
+rsync2mp3.toml
+rsync2aac.toml
+rsync2opus.toml
+
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+build/
+dist/
